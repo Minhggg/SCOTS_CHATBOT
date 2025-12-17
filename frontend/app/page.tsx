@@ -1,125 +1,151 @@
-"use client";
+"use client"
 
-import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { SendHorizontal, Bot } from "lucide-react";
-import { ChatSidebar } from "@/components/chat/chat-sidebar";
-import { ChatMessage } from "@/components/chat/chat-message";
-import { Message } from "@/types";
+import * as React from "react"
+import { useState } from "react"
+// import { ChatSidebar } from "@/components/chat/chat-sidebar"
+import { ChatSidebar } from "@/components/sidebar/index";
+import { ChatList, Message } from "@/components/chat/chat-list"
+import { PromptBox } from "@/components/chat/prompt-box"
+
+// Mở rộng kiểu Message để hỗ trợ hiển thị ảnh trong ChatList (nếu cần)
+interface ExtendedMessage extends Message {
+  image?: string | null;
+}
 
 export default function Home() {
-  const router = useRouter();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  // --- 1. STATE MANAGEMENT ---
+  const [messages, setMessages] = useState<ExtendedMessage[]>([])
+  
+  // State cho Text Input
+  const [input, setInput] = useState("")
+  
+  // State cho Ảnh (Lưu URL preview để hiển thị và File để upload API sau này)
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
-  // Auto scroll xuống dưới cùng khi có tin nhắn mới
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  const [isLoading, setIsLoading] = useState(false)
 
+  // --- 2. HANDLER: Gửi tin nhắn ---
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    e.preventDefault()
 
-    // 1. Thêm tin nhắn của User vào UI ngay lập tức
-    const userMessage: Message = {
+    // Chặn gửi nếu rỗng (không text VÀ không ảnh) hoặc đang loading
+    if ((!input.trim() && !selectedImage) || isLoading) return
+
+    // 2.1. Tạo tin nhắn User (Hiển thị lên UI ngay lập tức)
+    const userMessage: ExtendedMessage = {
       id: Date.now().toString(),
-      role: 'user',
+      role: "user",
       content: input,
+      image: selectedImage, // Lưu ảnh vào tin nhắn để hiện trong lịch sử chat
       createdAt: new Date(),
-    };
+    }
+
+    setMessages((prev) => [...prev, userMessage])
     
-    setMessages((prev) => [...prev, userMessage]);
-    setInput("");
-    setIsLoading(true);
+    // 2.2. RESET FORM (Quan trọng: Xóa cả text và ảnh sau khi gửi)
+    setInput("")
+    setSelectedImage(null)
+    setSelectedFile(null)
+    
+    setIsLoading(true)
 
     try {
-      // Gọi API FastAPI
+      // 2.3. Gọi API (Logic cũ)
+      // Lưu ý: Nếu muốn gửi ảnh lên Server, bạn cần chuyển sang dùng FormData thay vì JSON
       const response = await fetch("http://localhost:8000/api/v1/chat/message", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ message: input }),
-      });
+        // Hiện tại chỉ gửi text lên server demo
+        body: JSON.stringify({ message: userMessage.content }),
+      })
 
-      if (!response.ok) throw new Error("Network response was not ok");
+      if (!response.ok) throw new Error("Network response was not ok")
 
-      const data = await response.json();
-      
-      const botMessage: Message = {
+      const data = await response.json()
+
+      // 2.4. Tạo tin nhắn phản hồi từ Bot
+      const botMessage: ExtendedMessage = {
         id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: data.response, // Lấy dữ liệu từ Backend
+        role: "assistant",
+        content: data.response,
         createdAt: new Date(),
-      };
-      
-      setMessages((prev) => [...prev, botMessage]);
-    } catch (error) {
-       // ... xử lý lỗi
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      }
 
+      setMessages((prev) => [...prev, botMessage])
+    } catch (error) {
+      console.error("Error fetching chat:", error)
+      const errorMessage: ExtendedMessage = {
+        id: (Date.now() + 2).toString(),
+        role: "assistant",
+        content: "Xin lỗi, hệ thống đang gặp sự cố. Vui lòng thử lại sau.",
+        createdAt: new Date(),
+      }
+      setMessages((prev) => [...prev, errorMessage])
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // --- 3. RENDER UI ---
   return (
-    <div className="flex h-screen bg-white">
-      {/* LEFT SIDEBAR */}
+    <div className="flex h-screen w-full bg-background overflow-hidden">
+      
+      {/* A. LEFT SIDEBAR */}
       <ChatSidebar />
 
-      {/* RIGHT CHAT AREA */}
+      {/* B. RIGHT CHAT AREA */}
       <main className="flex-1 flex flex-col h-full relative">
-        {/* Header mobile (nếu cần) */}
-        <header className="p-4 border-b md:hidden flex items-center justify-between">
-            <span className="font-bold">Gemini Clone</span>
+        
+        {/* Header */}
+        <header className="flex items-center justify-between border-b px-6 py-3 bg-white/50 dark:bg-[#303030]/50 backdrop-blur-sm z-10">
+          <h2 className="text-lg font-semibold text-foreground">Gemini Clone</h2>
         </header>
 
-        {/* Message List */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-6">
-            {messages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-gray-400">
-                    <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text">Xin chào, tôi có thể giúp gì?</h1>
-                </div>
-            ) : (
-                messages.map((msg) => <ChatMessage key={msg.id} message={msg} />)
-            )}
-            {isLoading && (
-               <div className="max-w-3xl mx-auto p-4 flex gap-4">
-                 <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white"><Bot size={18}/></div>
-                 <div className="animate-pulse text-gray-500">Đang suy nghĩ...</div>
-               </div>
-            )}
-            <div ref={bottomRef} />
+        {/* Chat List (Khu vực hiển thị tin nhắn) */}
+        <div className="flex-1 w-full overflow-hidden relative flex flex-col">
+           <div className="flex-1 w-full h-full">
+              <ChatList messages={messages} isLoading={isLoading} />
+           </div>
         </div>
 
-        {/* Input Area (Sticky bottom) */}
-        <div className="p-4 bg-white/80 backdrop-blur-md border-t">
-          <div className="max-w-3xl mx-auto relative">
-            <form onSubmit={handleSubmit} className="relative">
-              <input
-                type="text"
+        {/* Input Area (Khu vực nhập liệu) */}
+        <div className="w-full p-4 pt-0">
+          <div className="max-w-3xl mx-auto">
+            <form onSubmit={handleSubmit} className="relative w-full">
+              
+              {/* COMPONENT PROMPT BOX */}
+              <PromptBox 
+                // Truyền Text State
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Nhập câu hỏi của bạn..."
-                className="w-full p-4 pr-12 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-900 placeholder:text-gray-400 shadow-sm"
-                disabled={isLoading}
+                
+                // Truyền Image State (Quan trọng để PromptBox hiển thị ảnh từ Page)
+                imageSrc={selectedImage}
+                onImageChange={(file, previewUrl) => {
+                  setSelectedFile(file)
+                  setSelectedImage(previewUrl)
+                }}
+
+                // Xử lý phím Enter để gửi
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSubmit(e as any);
+                  }
+                }}
               />
-              <button
-                type="submit"
-                disabled={isLoading || !input.trim()}
-                className="absolute right-2 top-2 p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              >
-                <SendHorizontal size={20} />
-              </button>
             </form>
-            <div className="text-center text-xs text-gray-400 mt-2">
-               Gemini Clone có thể mắc lỗi. Hãy kiểm tra lại thông tin quan trọng.
+
+            <div className="text-center text-xs text-muted-foreground mt-2 opacity-70">
+              Gemini Clone có thể mắc lỗi. Hãy kiểm tra lại thông tin quan trọng.
             </div>
           </div>
         </div>
+
       </main>
     </div>
-  );
+  )
 }
