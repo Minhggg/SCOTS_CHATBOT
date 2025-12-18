@@ -14,7 +14,5 @@ async def chat_handler(request: ChatRequest):
     # Giả lập xử lý (Mocking)
     fake_ai_response = f"Backend FastAPI đã nhận được: '{user_msg}'. Đây là logic xử lý tách biệt."
     
-    # Simulate delay
-    # import asyncio; await asyncio.sleep(1)
     
     return ChatResponse(response=fake_ai_response)

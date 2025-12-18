@@ -18,7 +18,7 @@ class UserResponse(BaseModel):
     email: str
     
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 # Output: Token trả về
 class Token(BaseModel):

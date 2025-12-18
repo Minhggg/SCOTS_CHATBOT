@@ -10,6 +10,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
+  const MIAGENT_API_URL = process.env.NEXT_PUBLIC_MIAGENT_API_URL || "http://localhost:5001";
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -41,41 +43,49 @@ export default function LoginPage() {
     }
   };
 
+  const handleMicrosoftLogin = () => {
+    // URL callback của SCOTS_CHATBOT
+    const callbackUrl = typeof window !== 'undefined' 
+      ? `${window.location.origin}/auth/microsoft/callback`
+      : "http://localhost:3000/auth/microsoft/callback";
+    
+    // Kiểm tra xem có cần force account selection không (sau khi logout)
+    const forceAccountSelection = localStorage.getItem("force_account_selection") === "true";
+    
+    // Build OAuth URL với return_to parameter
+    let microsoftLoginUrl = `${MIAGENT_API_URL}/console/api/oauth/login/microsoft?return_to=${encodeURIComponent(callbackUrl)}`;
+    
+    // Nếu có flag force_account_selection, thêm parameter vào URL
+    if (forceAccountSelection) {
+      microsoftLoginUrl += `&force_account_selection=true`;
+    }
+    
+    // Redirect đến Microsoft OAuth
+    window.location.href = microsoftLoginUrl;
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100">
       <div className="w-full max-w-md p-8 bg-white rounded-xl shadow-lg">
-        <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">Đăng nhập Gemini Clone</h2>
+        <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">Đăng nhập Scots</h2>
         
         {error && <div className="p-3 mb-4 text-sm text-red-500 bg-red-50 rounded">{error}</div>}
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Username</label>
-            <input 
-              type="text" 
-              className="mt-1 w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none text-black"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Password</label>
-            <input 
-              type="password" 
-              className="mt-1 w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none text-black"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          <button type="submit" className="w-full py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">
-            Đăng nhập
-          </button>
-        </form>
-        <p className="mt-4 text-center text-sm text-gray-600">
-          Chưa có tài khoản? <Link href="/register" className="text-blue-600 hover:underline">Đăng ký ngay (Mock)</Link>
-        </p>
+        
+
+        {/* Microsoft Login Button */}
+        <button
+          onClick={handleMicrosoftLogin}
+          className="w-full py-2 px-4 bg-[#222225] text-white rounded-md hover:bg-[#2d2d30] transition flex items-center justify-center gap-2"
+        >
+          <svg className="w-5 h-5" viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0 0H11V11H0V0Z" fill="#F25022"/>
+            <path d="M12 0H23V11H12V0Z" fill="#7FBA00"/>
+            <path d="M0 12H11V23H0V12Z" fill="#00A4EF"/>
+            <path d="M12 12H23V23H12V12Z" fill="#FFB900"/>
+          </svg>
+          <span>Đăng nhập với Microsoft</span>
+        </button>
       </div>
     </div>
   );

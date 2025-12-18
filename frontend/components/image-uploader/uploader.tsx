@@ -1,0 +1,54 @@
+"use client";
+
+import { useState, type ChangeEvent, type FC, type ReactNode } from 'react';
+import { useLocalFileUploader } from './hooks';
+import { ALLOW_FILE_EXTENSIONS, type ImageFile } from './types';
+
+type UploaderProps = {
+  children: (hovering: boolean) => ReactNode;
+  onUpload: (imageFile: ImageFile) => void;
+  closePopover?: () => void;
+  limit?: number;
+  disabled?: boolean;
+};
+
+export const Uploader: FC<UploaderProps> = ({
+  children,
+  onUpload,
+  closePopover,
+  limit,
+  disabled,
+}) => {
+  const [hovering, setHovering] = useState(false);
+  const { handleLocalFileUpload } = useLocalFileUploader({
+    limit,
+    onUpload,
+    disabled,
+  });
+
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    handleLocalFileUpload(file);
+    closePopover?.();
+  };
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => setHovering(false)}
+    >
+      {children(hovering)}
+      <input
+        className="absolute block inset-0 opacity-0 text-[0] w-full disabled:cursor-not-allowed cursor-pointer"
+        onClick={(e) => ((e.target as HTMLInputElement).value = '')}
+        type="file"
+        accept={ALLOW_FILE_EXTENSIONS.map(ext => `.${ext}`).join(',')}
+        onChange={handleChange}
+        disabled={disabled}
+      />
+    </div>
+  );
+};

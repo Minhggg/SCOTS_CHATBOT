@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from app.models.user import User
 from app.schemas.auth import UserRegister, UserLogin
-from app.core.security import get_password_hash, verify_password, create_access_token
+from app.core.security import get_password_hash, verify_password
 
 def get_user_by_username(db: Session, username: str):
     return db.query(User).filter(User.username == username).first()
