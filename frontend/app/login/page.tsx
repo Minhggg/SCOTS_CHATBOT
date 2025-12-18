@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { getUserProfile } from "@/lib/miagent-api";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -43,25 +45,72 @@ export default function LoginPage() {
     }
   };
 
+  // Xử lý OAuth callback khi có console_token từ URL (từ Microsoft OAuth)
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      // Lấy token từ URL params hoặc từ window.location (fallback)
+      const tokenFromParams = searchParams.get("console_token");
+      const tokenFromUrl = typeof window !== 'undefined' 
+        ? new URLSearchParams(window.location.search).get("console_token")
+        : null;
+      const token = tokenFromParams || tokenFromUrl;
+      
+      console.log("🔍 OAuth callback check:");
+      console.log("  - Token from searchParams:", tokenFromParams ? "Found" : "Not found");
+      console.log("  - Token from window.location:", tokenFromUrl ? "Found" : "Not found");
+      console.log("  - Current URL:", typeof window !== 'undefined' ? window.location.href : "N/A");
+      
+      if (!token) {
+        console.log("  - No token found, skipping OAuth callback");
+        return;
+      }
+
+      console.log("✅ Token found, processing OAuth callback...");
+
+      try {
+        // Lưu token vào localStorage ngay lập tức (theo cách của aht-miagent)
+        localStorage.setItem("token", token);
+        localStorage.setItem("auth_provider", "microsoft");
+        console.log("  - Token saved to localStorage");
+
+        // Thử lấy thông tin user từ aht-miagent (không bắt buộc)
+        try {
+          const userProfile = await getUserProfile();
+          localStorage.setItem("user", JSON.stringify(userProfile));
+          localStorage.setItem("username", userProfile.name || userProfile.email);
+          localStorage.setItem("userEmail", userProfile.email);
+          console.log("  - User profile saved");
+        } catch (profileError: any) {
+          console.warn("  - Error fetching user profile (non-critical):", profileError);
+        }
+
+        // Xóa flag force_account_selection sau khi đăng nhập thành công
+        localStorage.removeItem("force_account_selection");
+        
+        console.log("  - Redirecting to home page...");
+        // Dùng window.location.href thay vì router để đảm bảo full page reload và clean URL
+        window.location.href = "/";
+      } catch (err: any) {
+        console.error("❌ Error in OAuth callback:", err);
+        setError(err.message || "Lỗi khi xử lý đăng nhập");
+      }
+    };
+
+    handleOAuthCallback();
+  }, [searchParams]);
+
   const handleMicrosoftLogin = () => {
-    // URL callback của SCOTS_CHATBOT
-    const callbackUrl = typeof window !== 'undefined' 
-      ? `${window.location.origin}/auth/microsoft/callback`
-      : "http://localhost:3000/auth/microsoft/callback";
+    // Truyền return_to qua query parameter để đảm bảo backend nhận được đúng URL
+    // Backend sẽ ưu tiên query parameter, fallback về Referer header
+    const returnTo = typeof window !== 'undefined' 
+      ? `${window.location.origin}/login`
+      : "http://localhost:3001/login";
     
-    // Kiểm tra xem có cần force account selection không (sau khi logout)
-    const forceAccountSelection = localStorage.getItem("force_account_selection") === "true";
+    console.log("🚀 Starting Microsoft OAuth login...");
+    console.log("  - return_to:", returnTo);
+    console.log("  - Referer will be:", typeof window !== 'undefined' ? window.location.href : "N/A");
     
-    // Build OAuth URL với return_to parameter
-    let microsoftLoginUrl = `${MIAGENT_API_URL}/console/api/oauth/login/microsoft?return_to=${encodeURIComponent(callbackUrl)}`;
-    
-    // Nếu có flag force_account_selection, thêm parameter vào URL
-    if (forceAccountSelection) {
-      microsoftLoginUrl += `&force_account_selection=true`;
-    }
-    
-    // Redirect đến Microsoft OAuth
-    window.location.href = microsoftLoginUrl;
+    window.location.href = `${MIAGENT_API_URL}/console/api/oauth/login/microsoft?return_to=${encodeURIComponent(returnTo)}`;
   };
 
   return (
@@ -73,9 +122,10 @@ export default function LoginPage() {
 
         
 
-        {/* Microsoft Login Button */}
+        {/* Microsoft Login Button - Dùng onClick với window.location.href để đảm bảo Referer header */}
         <button
           onClick={handleMicrosoftLogin}
+          type="button"
           className="w-full py-2 px-4 bg-[#222225] text-white rounded-md hover:bg-[#2d2d30] transition flex items-center justify-center gap-2"
         >
           <svg className="w-5 h-5" viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg">
